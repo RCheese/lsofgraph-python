@@ -1,6 +1,7 @@
-#!/usr/bin/env python
-# Convert the output of `lsof -F` into PID USER CMD OBJ
+#!/usr/bin/env python3
+
 import sys
+from collections import defaultdict
 
 
 def parse_lsof():
@@ -12,7 +13,7 @@ def parse_lsof():
     for line in sys.stdin:
 
         if line.startswith("COMMAND"):
-            print 'did you run lsof without -F?'
+            print('did you run lsof without -F?')
             exit(1)
 
         tag = line[0]
@@ -54,7 +55,7 @@ def find_connections(procs):
         'udp': {},
         'pipe': {}
     }
-    for pid, proc in procs.iteritems():
+    for pid, proc in procs.items():
         if 'files' in proc:
             for _, file in enumerate(proc['files']):
 
@@ -121,49 +122,46 @@ def find_connections(procs):
 
 
 def print_graph(procs, conns):
-    colors = {
-        'fifo': "green",
-        'unix': "purple",
-        'tcp': "red",
-        'udp': "orange",
-        'pipe': "blue"
-    }
+    colors = defaultdict(lambda: "black")
+    colors.update(
+        {
+            'fifo': "green",
+            'unix': "purple",
+            'tcp': "red",
+            'udp': "orange",
+            'pipe': "blue"
+        }
+    )
 
     # Generate graph
 
     print("digraph G {")
-    print(
-        "\tgraph [ center=true, margin=0.2, nodesep=0.1, ranksep=0.3, rankdir=LR];")
-    print(
-        "\tnode [ shape=box, style=\"rounded,filled\" width=0, height=0, fontname=Helvetica, fontsize=10];")
+    print("\tgraph [ center=true, margin=0.2, nodesep=0.1, ranksep=0.3, rankdir=LR];")
+    print("\tnode [ shape=box, style=\"rounded,filled\" width=0, height=0, fontname=Helvetica, fontsize=10];")
     print("\tedge [ fontname=Helvetica, fontsize=10];")
 
     # Parent/child relationships
 
-    for pid, proc in procs.iteritems():
+    for pid, proc in procs.items():
         if 'R' in proc and proc['R'] == "1":
             color = "grey70"
         else:
             color = "white"
         if 'p' in proc and 'n' in proc:
-            print("\tp%s [ label = \"%s\\n%s %s\" fillcolor=%s ];" %
-                  (proc['p'], proc['n'], proc['p'], proc['L'], color))
+            print(f"\tp{proc['p']} [ label = \"{proc['n']}\\n{proc['p']} {proc['L']}\" fillcolor={color} ];")
         elif 'p' in proc:
             if 'L' in proc:  # there could be no L flag if process running, but user was removed. lsof: no pwd entry for UID
-                print("\tp%s [ label = \"%s\\n%s %s\" fillcolor=%s ];" %
-                      (proc['p'], proc['c'], proc['p'], proc['L'], color))
+                print(f"\tp{proc['p']} [ label = \"{proc['c']}\\n{proc['p']} {proc['L']}\" fillcolor={color} ];")
             else:
-                print("\tp%s [ label = \"%s\\n%s %s\" fillcolor=%s ];" %
-                      (proc['p'], proc['c'], proc['p'], "no user", color))
+                print(f"\tp{proc['p']} [ label = \"{proc['c']}\\n{proc['p']} no user\" fillcolor={color} ];")
         if 'R' in proc and proc['R'] in procs:
             proc_parent = procs[proc['R']]
             if proc_parent:
                 if proc_parent['p'] != "1":
-                    print(
-                        "\tp%s -> p%s [ penwidth=2 weight=100 color=grey60 dir=\"none\" ];" % (proc['R'], proc['p']))
+                    print(f"\tp{proc['R']} -> p{proc['p']} [ penwidth=2 weight=100 color=grey60 dir=\"none\" ];")
 
-    for type, conn in conns.iteritems():
-        for id, files in conn.iteritems():
+    for type, conn in conns.items():
+        for id, files in conn.items():
             if len(files) == 2:
                 if files[0]['proc'] != files[1]['proc']:
                     label = type + ":\\n" + id
@@ -172,8 +170,7 @@ def print_graph(procs, conns):
                         dir = "forward"
                     elif files[0]['a'] == "r":
                         dir = "backward"
-                    print("\tp%s -> p%s [ color=\"%s\" label=\"%s\" dir=\"%s\"];" % (
-                        files[0]['proc']['p'], files[1]['proc']['p'], colors[type] or "black", label, dir))
+                    print(f"\tp{files[0]['proc']['p']} -> p{files[1]['proc']['p']} [ color=\"{colors[type]}\" label=\"{label}\" dir=\"{dir}\"];")
     print("}")
 
 
